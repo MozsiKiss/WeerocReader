@@ -75,8 +75,8 @@ int main(int argc, char* argv[]){
     MPPC_Array_LG[Channel] = new TH1F(Form("MPPC_Array_LG ch. %i", Channel), "", 4096, 0, 4095);
     MPPC_Array_HG[Channel] = new TH1F(Form("MPPC_Array_HG ch. %i", Channel), "", 4096, 0, 4095);
   }
-  TH1F* ArraySummedSpectrum_LG = new TH1F("ArraySummedSpectrum_LG", "", 4096, 0, 16*4096);
-  TH1F* ArraySummedSpectrum_HG = new TH1F("ArraySummedSpectrum_HG", "", 4096, 0, 16*4096);
+  TH1F* ArraySummedSpectrum_LG = new TH1F("ArraySummedSpectrum_LG", "", 4096, 0, 2*4096);
+  TH1F* ArraySummedSpectrum_HG = new TH1F("ArraySummedSpectrum_HG", "", 4096, 0, 2*4096);
   
 
   //Reads one line (up to 1024 characters) from file to remove the header
@@ -93,15 +93,19 @@ int main(int argc, char* argv[]){
       Flags[ReadingChannel].push_back(InputFlag);
       LowGainValues[ReadingChannel].push_back(InputLowGainValue);
       HighGainValues[ReadingChannel].push_back(InputHighGainValue);
-      if(ReadingChannel == PlottingChannel){
-	SingleSpectrum_LG->Fill(InputLowGainValue);
-	SingleSpectrum_HG->Fill(InputHighGainValue);
+      //if(ReadingChannel == PlottingChannel
+       if((ReadingChannel == PlottingChannel) && (InputFlag == 1)){
+      	SingleSpectrum_LG->Fill(InputLowGainValue);
+	      SingleSpectrum_HG->Fill(InputHighGainValue);
       }
-      if(ReadingChannel < 16){
-      	MPPC_Array_LG[ReadingChannel]->Fill(InputLowGainValue);
+      if((ReadingChannel < 16) && (InputFlag == 1)){
+      //if((ReadingChannel > 15 ) && (InputFlag == 1)){
+       	MPPC_Array_LG[ReadingChannel]->Fill(InputLowGainValue);
       	MPPC_Array_HG[ReadingChannel]->Fill(InputHighGainValue);
+         if((ReadingChannel < 7) && (ReadingChannel > 4) && (InputFlag == 1)){
 	InputLowSum += InputLowGainValue;
 	InputHighSum += InputHighGainValue;
+        }
       }
     }
     
@@ -120,14 +124,18 @@ int main(int argc, char* argv[]){
   ArrayCanvas->Divide(4, 4);
   for(int Row = 0; Row < 4; Row++){
     for(int ColumnFromRight = 0; ColumnFromRight < 4; ColumnFromRight++){
-      ArrayCanvas->cd(Row*4 + (4 - ColumnFromRight));
+      auto pc = ArrayCanvas->cd(Row*4 + (4 - ColumnFromRight));
+      pc->SetLogy();
+      MPPC_Array_LG[Row*4+ColumnFromRight]->SetLineColor(kRed);
+      MPPC_Array_HG[Row*4+ColumnFromRight]->SetLineColor(kGreen);
       MPPC_Array_LG[Row*4+ColumnFromRight]->Draw();
       MPPC_Array_HG[Row*4+ColumnFromRight]->Draw("sames");
+
     }
   }
 
-  TCanvas* ArraySummedSpectrumCanvas = new TCanvas("ArraySummedSpectrumCanvas", "MPPC array summed spectrum", 1100, 0, 600, 434);
-  //TCanvas* ArraySummedSpectrumCanvas = new TCanvas();
+  //TCanvas* ArraySummedSpectrumCanvas = new TCanvas("ArraySummedSpectrumCanvas", "MPPC array summed spectrum", 1100, 0, 600, 434);
+  TCanvas* ArraySummedSpectrumCanvas = new TCanvas();
   ArraySummedSpectrumCanvas->cd();
   ArraySummedSpectrum_LG->SetLineColor(kRed);
   ArraySummedSpectrum_HG->SetLineColor(kGreen);
