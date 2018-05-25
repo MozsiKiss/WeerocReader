@@ -73,7 +73,9 @@ int main(int argc, char* argv[]){
   TH1F* MPPC_Array_HG[NumberOfChannels];
   for(int Channel = 0; Channel < NumberOfChannels; Channel++){
     MPPC_Array_LG[Channel] = new TH1F(Form("MPPC_Array_LG ch. %i", Channel), "", 4096, 0, 4095);
+    MPPC_Array_LG[Channel]->SetLineColor(kRed);
     MPPC_Array_HG[Channel] = new TH1F(Form("MPPC_Array_HG ch. %i", Channel), "", 4096, 0, 4095);
+    MPPC_Array_HG[Channel]->SetLineColor(kGreen);
   }
   TH1F* ArraySummedSpectrum_LG = new TH1F("ArraySummedSpectrum_LG", "", 4096, 0, 16*4096);
   TH1F* ArraySummedSpectrum_HG = new TH1F("ArraySummedSpectrum_HG", "", 4096, 0, 16*4096);
@@ -93,11 +95,11 @@ int main(int argc, char* argv[]){
       Flags[ReadingChannel].push_back(InputFlag);
       LowGainValues[ReadingChannel].push_back(InputLowGainValue);
       HighGainValues[ReadingChannel].push_back(InputHighGainValue);
-      if(ReadingChannel == PlottingChannel){
+      if((ReadingChannel == PlottingChannel) && (InputFlag == 1)){
 	SingleSpectrum_LG->Fill(InputLowGainValue);
 	SingleSpectrum_HG->Fill(InputHighGainValue);
       }
-      if(ReadingChannel < 16){
+      if((ReadingChannel < 16) && (InputFlag == 1)){
       	MPPC_Array_LG[ReadingChannel]->Fill(InputLowGainValue);
       	MPPC_Array_HG[ReadingChannel]->Fill(InputHighGainValue);
 	InputLowSum += InputLowGainValue;
@@ -120,7 +122,7 @@ int main(int argc, char* argv[]){
   ArrayCanvas->Divide(4, 4);
   for(int Row = 0; Row < 4; Row++){
     for(int ColumnFromRight = 0; ColumnFromRight < 4; ColumnFromRight++){
-      ArrayCanvas->cd(Row*4 + (4 - ColumnFromRight));
+      ArrayCanvas->cd(Row*4 + (4 - ColumnFromRight))->SetLogy();
       MPPC_Array_LG[Row*4+ColumnFromRight]->Draw();
       MPPC_Array_HG[Row*4+ColumnFromRight]->Draw("sames");
     }
