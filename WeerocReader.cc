@@ -64,6 +64,8 @@ int main(int argc, char* argv[]){
   int PlottingChannel = 31;
   int InputLowSum = 0;
   int InputHighSum = 0;
+
+  int Multiplicity = 0;
   
   cout << endl << "Please input which channel to plot: ";
   cin >> PlottingChannel;
@@ -79,20 +81,23 @@ int main(int argc, char* argv[]){
   }
   TH1F* ArraySummedSpectrum_LG = new TH1F("ArraySummedSpectrum_LG", "", 4096, 0, 16*4096);
   TH1F* ArraySummedSpectrum_HG = new TH1F("ArraySummedSpectrum_HG", "", 4096, 0, 16*4096);
-  
+
+  TH1F* MultiplicityDistribution = new TH1F("MultiplicityDist", "", 32, 0, 32);
 
   //Reads one line (up to 1024 characters) from file to remove the header
   char DummyLine[1024];
   InputDataFile.getline(DummyLine, 1024);
 
   while(true){
-    if(InputDataFile.eof()) break;
     //Loops over all active channels (32 unless otherwise specified)
     for(int ReadingChannel = 0; ReadingChannel < NumberOfChannels; ReadingChannel++){
       //Reads the three entries (hit flag, low gain value, high gain value) for one channel
       InputDataFile >> InputFlag >> InputLowGainValue >> InputHighGainValue;
       //Pushes read values into the vector corresponding to the read channel
       Flags[ReadingChannel].push_back(InputFlag);
+      if(InputFlag == 1){
+	Multiplicity++;
+      }
       LowGainValues[ReadingChannel].push_back(InputLowGainValue);
       HighGainValues[ReadingChannel].push_back(InputHighGainValue);
       if((ReadingChannel == PlottingChannel) && (InputFlag == 1)){
@@ -107,14 +112,21 @@ int main(int argc, char* argv[]){
       }
     }
     
+    if(InputDataFile.eof()) break;
+      
     //After reading NumberOfChannels x three entries, the temperature is read
     InputDataFile >> InputTemperature;
     Temperatures.push_back(InputTemperature);
 
+    //Filling histograms
     ArraySummedSpectrum_LG->Fill(InputLowSum);
     ArraySummedSpectrum_HG->Fill(InputHighSum);
+    MultiplicityDistribution->Fill(Multiplicity);
+
+    //Resetting for next run
     InputLowSum = 0;
     InputHighSum = 0;
+    Multiplicity = 0;
 
   }
 
@@ -166,6 +178,11 @@ int main(int argc, char* argv[]){
   I_Am_Legend->Draw();
 
   SingleSpectrumCanvas->Update();
+
+  TCanvas* MultiplicityCanvas = new TCanvas("MultiplicityCanvas", "Multiplicity", 0, 0, 900, 700);
+  MultiplicityCanvas->cd();
+  MultiplicityDistribution->Draw();
+  MultiplicityCanvas->SetLogy();
 
   //Needed to ensure that the stat box is not overlapping anything important
   PointerToStats = (TPaveStats*)SingleSpectrum_HG->FindObject("stats");
