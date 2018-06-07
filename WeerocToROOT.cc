@@ -9,7 +9,7 @@ void WeerocToROOT(string FileName){
   TTree* Tree = new TTree("tree", "", 0);
 
   //File for reading
-  Tree->ReadFile("TempFile.txt");
+  Tree->ReadFile("TempFileUnixLineBreaks.txt");
 
   //Writes the tree to the root file
   Tree->Write();
