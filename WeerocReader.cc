@@ -7,6 +7,8 @@
 #include <TApplication.h>
 #include <TH1.h>
 #include <TFile.h>
+#include <TTree.h>
+#include <TLeaf.h>
 #include <TCanvas.h>
 #include <TROOT.h>
 #include <TLegend.h>
@@ -41,11 +43,6 @@ int main(int argc, char* argv[]){
     cout << endl << "Error opening file! Please check target directory!" << endl << endl;
     return 0;
   }
-
-  cout << endl << "Processing file " << FileName << "..." << endl;
-
-  ifstream InputDataFile;
-  InputDataFile.open(Form("%s", FilePath));
 
   //Number of channels in use (may change through masking or zero suppression)
   const int NumberOfChannels = 32;
@@ -84,52 +81,127 @@ int main(int argc, char* argv[]){
 
   TH1F* MultiplicityDistribution = new TH1F("MultiplicityDist", "", 32, 0, 32);
 
-  //Reads one line (up to 1024 characters) from file to remove the header
-  char DummyLine[1024];
-  InputDataFile.getline(DummyLine, 1024);
+  string FileNameString = (string)FileName;
+  bool IsRootFile = false;
 
-  while(true){
-    //Loops over all active channels (32 unless otherwise specified)
-    for(int ReadingChannel = 0; ReadingChannel < NumberOfChannels; ReadingChannel++){
-      //Reads the three entries (hit flag, low gain value, high gain value) for one channel
-      InputDataFile >> InputFlag >> InputLowGainValue >> InputHighGainValue;
-      //Pushes read values into the vector corresponding to the read channel
-      Flags[ReadingChannel].push_back(InputFlag);
-      if(InputFlag == 1){
-	Multiplicity++;
-      }
-      LowGainValues[ReadingChannel].push_back(InputLowGainValue);
-      HighGainValues[ReadingChannel].push_back(InputHighGainValue);
-      if((ReadingChannel == PlottingChannel) && (InputFlag == 1)){
-	SingleSpectrum_LG->Fill(InputLowGainValue);
-	SingleSpectrum_HG->Fill(InputHighGainValue);
-      }
-      if((ReadingChannel < 16) && (InputFlag == 1)){
-      	MPPC_Array_LG[ReadingChannel]->Fill(InputLowGainValue);
-      	MPPC_Array_HG[ReadingChannel]->Fill(InputHighGainValue);
-	InputLowSum += InputLowGainValue;
-	InputHighSum += InputHighGainValue;
-      }
-    }
+  if(FileNameString.find(".root") != string::npos){
+    IsRootFile = true;
+  }
+
+  cout << endl << "Processing file " << FileName << "..." << endl;
+
+  //Reading if file is not of ROOT type i.e. of ASCII type
+  if(IsRootFile == false){
     
-    if(InputDataFile.eof()) break;
+    ifstream InputDataFile;
+    InputDataFile.open(Form("%s", FilePath));
+    
+    //Reads one line (up to 1024 characters) from file to remove the header
+    char DummyLine[1024];
+    InputDataFile.getline(DummyLine, 1024);
+
+    //Loops over full ASCII file (abort criterion below)
+    while(true){
       
-    //After reading NumberOfChannels x three entries, the temperature is read
-    InputDataFile >> InputTemperature;
-    Temperatures.push_back(InputTemperature);
+      //Loops over all active channels (32 unless otherwise specified)
+      for(int ReadingChannel = 0; ReadingChannel < NumberOfChannels; ReadingChannel++){
+	//Reads the three entries (hit flag, low gain value, high gain value) for one channel
+	InputDataFile >> InputFlag >> InputLowGainValue >> InputHighGainValue;
+	//Pushes read values into the vector corresponding to the read channel
+	Flags[ReadingChannel].push_back(InputFlag);
+	LowGainValues[ReadingChannel].push_back(InputLowGainValue);
+	HighGainValues[ReadingChannel].push_back(InputHighGainValue);
+      }
+      
+      if(InputDataFile.eof()) break;
+      
+      //After reading NumberOfChannels x three entries, the temperature is read
+      InputDataFile >> InputTemperature;
+      Temperatures.push_back(InputTemperature);
+      
+    }  //End of while loop reading full ASCII file
+
+  }  //End of case "is not a ROOT file but ASCII file"
+
+  if(IsRootFile == true){
+
+    TFile* InputRootFile = new TFile(Form("%s", FilePath));
+
+    if(InputRootFile->GetListOfKeys()->Contains("tree") == 0){
+      cout << endl;
+      cout << "Relevant data not found! Incorrect ROOT file given?" << endl;
+      cout << endl;
+      return 0;
+    }
+
+    //Obtains a pointer to the tree in the file
+    TTree* InputTree = (TTree*)InputRootFile->Get("tree");
+
+    //Pointer to the leaf where data will be read
+    TLeaf* InputLeaf;
+
+    for(int EntryNumber = 0; EntryNumber < InputTree->GetEntries(); EntryNumber++){
+
+      InputTree->GetEntry(EntryNumber);
+      
+      for(int ReadingChannel = 0; ReadingChannel < NumberOfChannels; ReadingChannel++){
+	
+	//Getting hit flag
+	InputLeaf = (TLeaf*)InputTree->GetLeaf(Form("hit%i", ReadingChannel));
+	Flags[ReadingChannel].push_back(InputLeaf->GetValue());
+
+	//Getting low gain value
+	InputLeaf = (TLeaf*)InputTree->GetLeaf(Form("ChargeLG%i", ReadingChannel));
+	LowGainValues[ReadingChannel].push_back(InputLeaf->GetValue());
+
+	//Getting high gain value
+	InputLeaf = (TLeaf*)InputTree->GetLeaf(Form("ChargeHG%i", ReadingChannel));
+	HighGainValues[ReadingChannel].push_back(InputLeaf->GetValue());
+
+      }
+
+      //Getting temperature (just once per event, not once per channel)
+      InputLeaf = (TLeaf*)InputTree->GetLeaf("temp");
+      Temperatures.push_back(InputLeaf->GetValue());
+
+    }
+
+  }
+
+  //Number of entries is size of Temperatures vector (note: "size" is unsigned)
+  for(unsigned int EntryNumber = 0; EntryNumber < Temperatures.size(); EntryNumber++){
+
+    for(int ReadingChannel = 0; ReadingChannel < NumberOfChannels; ReadingChannel++){
+      
+      if(Flags[ReadingChannel][EntryNumber] == 1){
+    	Multiplicity++;
+	if(ReadingChannel == PlottingChannel){
+	    SingleSpectrum_LG->Fill(LowGainValues[ReadingChannel][EntryNumber]);
+	    SingleSpectrum_HG->Fill(HighGainValues[ReadingChannel][EntryNumber]);
+	}
+	if(ReadingChannel < 16){
+	  MPPC_Array_LG[ReadingChannel]->Fill(LowGainValues[ReadingChannel][EntryNumber]);
+	  MPPC_Array_HG[ReadingChannel]->Fill(HighGainValues[ReadingChannel][EntryNumber]);
+	  InputLowSum += LowGainValues[ReadingChannel][EntryNumber];
+	  InputHighSum += HighGainValues[ReadingChannel][EntryNumber];
+	}
+ 
+      }
+      
+    }  //End of for all channels
 
     //Filling histograms
     ArraySummedSpectrum_LG->Fill(InputLowSum);
     ArraySummedSpectrum_HG->Fill(InputHighSum);
     MultiplicityDistribution->Fill(Multiplicity);
-
+    
     //Resetting for next run
     InputLowSum = 0;
     InputHighSum = 0;
     Multiplicity = 0;
-
-  }
-
+      
+  }  //End of for all entries
+    
   TCanvas* ArrayCanvas = new TCanvas("ArrayCanvas", "Array canvas", 0, 0, 1100, 900);
   ArrayCanvas->Divide(4, 4);
   for(int Row = 0; Row < 4; Row++){
